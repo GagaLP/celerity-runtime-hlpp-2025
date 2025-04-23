@@ -7,8 +7,8 @@
 
 #include "compression.h"
 
-constexpr uint32_t LOCAL_RANGE_X = 2;
-constexpr uint32_t LOCAL_RANGE_Y = 64;
+constexpr uint32_t LOCAL_RANGE_X = 8;
+constexpr uint32_t LOCAL_RANGE_Y = 32;
 
 using compression_type_a = celerity::compressed<celerity::compression::quantization<float, uint16_t>>;
 
@@ -21,12 +21,11 @@ void setup_wave(celerity::queue& queue, celerity::buffer<float, 2, compression_t
 		    (range[0] + LOCAL_RANGE_X - 1) / LOCAL_RANGE_X * LOCAL_RANGE_X, (range[1] + LOCAL_RANGE_Y - 1) / LOCAL_RANGE_Y * LOCAL_RANGE_Y};
 		cgh.parallel_for<class setup_wave>(
 		    celerity::nd_range<2>(global_range, local_range), [=, c = center, a = amplitude, s = sigma](celerity::nd_item<2> item) {
-			    auto zero_comp = dw_u.decompress_data(item, range);
 			    const auto id = item.get_global_id();
 			    if(id[0] < range[0] && id[1] < range[1]) {
 				    const float dx = id[1] - c.x();
 				    const float dy = id[0] - c.y();
-				    zero_comp[id] = a * sycl::exp(-(dx * dx / (2.f * s.x() * s.x()) + dy * dy / (2.f * s.y() * s.y())));
+				    dw_u[id] = a * sycl::exp(-(dx * dx / (2.f * s.x() * s.x()) + dy * dy / (2.f * s.y() * s.y())));
 			    }
 		    });
 	});
@@ -40,9 +39,8 @@ void zero(celerity::queue& queue, celerity::buffer<float, 2, compression_type_a>
 		const celerity::range<2> global_range{
 		    (range[0], range[1] + LOCAL_RANGE_Y - 1) / LOCAL_RANGE_Y * LOCAL_RANGE_Y, (range[1] + LOCAL_RANGE_Y - 1) / LOCAL_RANGE_Y * LOCAL_RANGE_Y};
 		cgh.parallel_for<class zero>(celerity::nd_range<2>(global_range, local_range), [=](celerity::nd_item<2> item) {
-			auto zero_comp = dw_buf.decompress_data(item, range);
 			const auto id = item.get_global_id();
-			if(id[0] < range[0] && id[1] < range[1]) { zero_comp[id] = 0.f; }
+			if(id[0] < range[0] && id[1] < range[1]) { dw_buf[id] = 0.f; }
 		});
 	});
 }
@@ -64,30 +62,42 @@ void step(celerity::queue& queue, celerity::buffer<T, 2, compression_type_a> up,
 	queue.submit([&](celerity::handler& cgh) {
 		celerity::accessor rw_up{up, cgh, celerity::access::one_to_one{}, celerity::read_write};
 		celerity::accessor r_u{u, cgh, celerity::access::neighborhood{{1, 1}, celerity::neighborhood_shape::along_axes}, celerity::read_only};
+		celerity::local_accessor<float, 2> lap{celerity::range<2>{LOCAL_RANGE_X + 2, LOCAL_RANGE_Y + 2}, cgh};
 
 		const auto range = up.get_range();
 		const celerity::range<2> local_range{LOCAL_RANGE_X, LOCAL_RANGE_Y};
 		const celerity::range<2> global_range{
 		    (range[0] + LOCAL_RANGE_X - 1) / LOCAL_RANGE_X * LOCAL_RANGE_X, (range[1] + LOCAL_RANGE_Y - 1) / LOCAL_RANGE_Y * LOCAL_RANGE_Y};
-
 		cgh.parallel_for<KernelName>(celerity::nd_range<2>(global_range, local_range), [=](celerity::nd_item<2> item) {
-			auto rw_comp = rw_up.decompress_data(item, range);
-			auto r_comp = r_u.decompress_data(item, range, true);
 			const auto id = item.get_global_id();
+			// celerity::group_barrier(item.get_group());
 			if(id[0] < range[0] && id[1] < range[1]) {
+				// Load the neighborhood into local memory
 				const size_t py = id[0] < range[0] - 1 ? id[0] + 1 : id[0];
 				const size_t my = id[0] > 0 ? id[0] - 1 : id[0];
 				const size_t px = id[1] < range[1] - 1 ? id[1] + 1 : id[1];
 				const size_t mx = id[1] > 0 ? id[1] - 1 : id[1];
 
-				// const size_t py = id[0] + 1;
-				// const size_t my = id[0] - 1;
-				// const size_t px = id[1] + 1;
-				// const size_t mx = id[1] - 1;
+				const size_t local_x = item.get_local_id()[0] + 1;
+				const size_t local_y = item.get_local_id()[1] + 1;
+				lap[local_x][local_y] = r_u[id];
+				lap[local_x + 1][local_y] = r_u[{py, id[1]}];
+				lap[local_x - 1][local_y] = r_u[{my, id[1]}];
+				lap[local_x][local_y + 1] = r_u[{id[0], px}];
+				lap[local_x][local_y - 1] = r_u[{id[0], mx}];
+			}
 
-				const float lap = (dt / delta.y()) * (dt / delta.y()) * ((r_comp[{py, id[1]}] - r_comp[id]) - (r_comp[id] - r_comp[{my, id[1]}]))
-				                  + (dt / delta.x()) * (dt / delta.x()) * ((r_comp[{id[0], px}] - r_comp[id]) - (r_comp[id] - r_comp[{id[0], mx}]));
-				rw_comp[id] = Config::a * 2 * r_comp[id] - Config::b * rw_comp[id] + Config::c * lap;
+			celerity::group_barrier(item.get_group());
+
+			if(id[0] < range[0] && id[1] < range[1]) {
+				const size_t local_x = item.get_local_id()[0] + 1;
+				const size_t local_y = item.get_local_id()[1] + 1;
+
+				const float lap_num = (dt / delta.y()) * (dt / delta.y())
+				                          * ((lap[local_x + 1][local_y] - lap[local_x][local_y]) - (lap[local_x][local_y] - lap[local_x - 1][local_y]))
+				                      + (dt / delta.x()) * (dt / delta.x())
+				                            * ((lap[local_x][local_y + 1] - lap[local_x][local_y]) - (lap[local_x][local_y] - lap[local_x][local_y - 1]));
+				rw_up[id] = Config::a * 2 * r_u[id] - Config::b * rw_up[id] + Config::c * lap_num;
 			}
 		});
 	});
@@ -123,10 +133,8 @@ void stream_append(celerity::queue& queue, celerity::buffer<T, 2, compression_ty
 	queue.submit([&](celerity::handler& cgh) {
 		celerity::accessor up_r{up, cgh, celerity::access::all{}, celerity::read_only_host_task};
 		celerity::experimental::side_effect os_eff{os, cgh};
-		cgh.host_task(celerity::on_master_node, [=] {
-			auto pointer = up_r.decompress_data(range.get(0), range.get(1));
-			os_eff->write(reinterpret_cast<const char*>(pointer.data()), range.size() * sizeof(T));
-		});
+		cgh.host_task(
+		    celerity::on_master_node, [=] { os_eff->write(reinterpret_cast<const char*>(up_r.get_pointer(range).data()), range.size() * sizeof(T)); });
 	});
 }
 
@@ -186,12 +194,10 @@ int main(int argc, char* argv[]) {
 
 	celerity::queue queue;
 
-	compression_type_a compression_type(-0.5f, 1.0f);
+	compression_type_a compression_type(1.0f, -0.5f);
 
 	celerity::buffer<float, 2, compression_type_a> up{celerity::range<2>(cfg.N, cfg.N), compression_type}; // next
-	celerity::debug::set_buffer_name(up, "up");
-	celerity::buffer<float, 2, compression_type_a> u{celerity::range<2>(cfg.N, cfg.N), compression_type}; // current
-	celerity::debug::set_buffer_name(u, "u");
+	celerity::buffer<float, 2, compression_type_a> u{celerity::range<2>(cfg.N, cfg.N), compression_type};  // current
 
 	setup_wave(queue, u, {cfg.N / 2.f, cfg.N / 2.f}, 1, {cfg.N / 2.f, cfg.N / 2.f});
 	zero(queue, up);
