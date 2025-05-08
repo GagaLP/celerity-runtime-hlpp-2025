@@ -11,6 +11,7 @@
 namespace celerity {
 namespace detail {
 
+	class backend;
 	class host_queue;
 	class reducer;
 	struct host_object_instance;
@@ -67,6 +68,9 @@ namespace detail {
 		void set_scheduler_lookahead(experimental::lookahead lookahead);
 
 		void flush_scheduler();
+
+		backend* NOCOMMIT_get_backend_ptr() const;
+		node_id NOCOMMIT_get_local_nid() const;
 
 	  private:
 		class impl;

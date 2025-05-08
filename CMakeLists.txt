@@ -223,6 +223,7 @@ endif()
 # TODO move all non-public headers from "include" to "src"
 set(PUBLIC_HEADERS
   include/accessor.h
+  include/async_event.h
   include/buffer.h
   include/celerity.h
   include/cgf_diagnostics.h
@@ -231,16 +232,20 @@ set(PUBLIC_HEADERS
   include/compression.h
   include/config.h
   include/debug.h
+  include/dense_map.h
   include/device_selector.h
   include/distr_queue.h
   include/fence.h
+  include/graph.h
   include/grid.h
   include/handler.h
   include/hint.h
   include/host_object.h
   include/host_utils.h
+  include/intrusive_graph.h
   include/item.h
   include/log.h
+  include/nd_memory.h
   include/partition.h
   include/print_utils.h
   include/queue.h
@@ -248,8 +253,11 @@ set(PUBLIC_HEADERS
   include/ranges.h
   include/reduction.h
   include/runtime.h
+  include/scratch_buffer.h
   include/side_effect.h
   include/sycl_wrappers.h
+  include/system_info.h
+  include/task.h
   include/tracy.h
   include/types.h
   include/utils.h
@@ -445,6 +453,10 @@ install(
   FILES
     ${PROJECT_SOURCE_DIR}/vendor/matchbox/include/matchbox.hh
   DESTINATION include/celerity/vendor
+)
+install(
+  FILES ${PROJECT_SOURCE_DIR}/include/backend/backend.h
+  DESTINATION include/celerity/backend
 )
 install(
   TARGETS celerity_runtime celerity_backends
