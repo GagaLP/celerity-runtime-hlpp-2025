@@ -1,3 +1,33 @@
+# HLPP 2025 Celerity Compression
+
+This repository is a fork of Celerity customized for the HLPP 2025 paper on compression. It introduces key modifications to enable a prototype Compression API within the Celerity runtime.
+
+**NOTE:** This is a prototype and **not** a production-ready implementation. Some components are experimental and subject to change.
+
+## Key Changes
+
+* Introduction of a compression tag for both [buffers](https://github.com/GagaLP/celerity-runtime-hlpp-2025/blob/560f382b80fdcb6838297f2fa0dc535e0f700395/include/buffer.h#L15)
+  and [accessors](https://github.com/GagaLP/celerity-runtime-hlpp-2025/blob/560f382b80fdcb6838297f2fa0dc535e0f700395/include/accessor.h#L29)
+
+* Implementation of a [**Scratch Buffer**](https://github.com/GagaLP/celerity-runtime-hlpp-2025/blob/compression-demo/include/scratch_buffer.h):
+  a device-local buffer used for global compression, which does not support cross-device synchronization.
+
+* Support for multiple compression types:
+
+  * [**Direct Compression**](https://github.com/GagaLP/celerity-runtime-hlpp-2025/blob/compression-demo/compression_types/direct_compression/direct_compression.hpp):
+    A fully functional, customizable interface for element-wise compression algorithms.
+  * [**Local Memory Compression**](https://github.com/GagaLP/celerity-runtime-hlpp-2025/blob/compression-demo/compression_types/local_memory_compression/local_memory_compression.hpp):
+    Tailored for point cloud compression, with a specialized accessor, buffer, and algorithm.
+  * [**Global Memory Compression**](https://github.com/GagaLP/celerity-runtime-hlpp-2025/blob/compression-demo/compression_types/global_memory_compression/global_memory_compression.hpp):
+    Similar to local memory compression but designed for buffers stored in global memory.
+
+## Usage Notes
+
+To use a specific compression type, include the corresponding header file in your Celerity program.
+
+**Important limitation:** Currently, users must explicitly include only one compression type at a time. Since, at the moment, there is no mechanism to programmatically select or infer the compression type, implementing the same compression algorithm across multiple types and including them all in the same program will result in compiler errors.
+
+
 <p align="center">
 <img src="docs/celerity_logo.png" alt="Celerity Logo">
 </p>
