@@ -1,6 +1,6 @@
 # HLPP 2025 Celerity Compression
 
-This repository is a fork of Celerity customized for the HLPP 2025 paper on compression. It introduces key modifications to enable a prototype Compression API within the Celerity runtime.
+This repository is a fork of [Celerity](https://github.com/celerity/celerity-runtime) customized for the HLPP 2025 paper on compression. It introduces key modifications to enable a prototype Compression API within the Celerity runtime.
 
 **NOTE:** This is a prototype and **not** a production-ready implementation. Some components are experimental and subject to change.
 
