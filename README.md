@@ -14,12 +14,24 @@ This repository is a fork of [Celerity](https://github.com/celerity/celerity-run
 
 * Support for multiple compression types:
 
-  * [**Direct Compression**](https://github.com/GagaLP/celerity-runtime-hlpp-2025/blob/compression-demo/compression_types/direct_compression/direct_compression.hpp):
+  * [**Element-Wise Compression**](./compression_types/element_wise_compression/element_wise_compression.hpp):
     A fully functional, customizable interface for element-wise compression algorithms.
-  * [**Local Memory Compression**](https://github.com/GagaLP/celerity-runtime-hlpp-2025/blob/compression-demo/compression_types/local_memory_compression/local_memory_compression.hpp):
+  * [**Local Memory Compression**](./compression_types/local_memory_compression/local_memory_compression.hpp):
     Tailored for point cloud compression, with a specialized accessor, buffer, and algorithm.
-  * [**Global Memory Compression**](https://github.com/GagaLP/celerity-runtime-hlpp-2025/blob/compression-demo/compression_types/global_memory_compression/global_memory_compression.hpp):
+  * [**Global Memory Compression**](./compression_types/global_memory_compression/global_memory_compression.hpp):
     Similar to local memory compression but designed for buffers stored in global memory.
+
+## Example Implementation
+
+* An example implementation of the point cloud processing pipeline is provided in the [compression example](./compression_example/). It includes all supported compression types and an uncompressed variant: 
+
+  * [**Uncompressed**](./compression_example/point_cloud_uncompressed/)
+  * [**Element-Wise Compression**](./compression_example/point_cloud_element_wise_compression/) 
+  * [**Local Memory Compression**](./compression_example/point_cloud_local_memory_compression/)
+  * [**Global Memory Compression**](./compression_example/point_cloud_global_memory_compression/)
+
+* The element-wise compression example additionally contains an alternative, potentially more general implementation for element-wise compression, implemented without introducing any user-facing changes.
+* The implementation follows a straightforward and trivial approach, prioritizing clarity.
 
 ## Usage Notes
 
